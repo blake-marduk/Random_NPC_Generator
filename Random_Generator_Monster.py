@@ -1,5 +1,8 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext,filedialog, messagebox, PhotoImage
+from PIL import Image, ImageDraw, ImageFont
+import os
+import sys
 import random
 import re
 
@@ -1253,6 +1256,45 @@ LOOT_DATA = {
         ]
     }
 }
+SGA_MAPPING = {
+        'A': '\uEB40', 'B': '\uEB41', 'C': '\uEB42', 'D': '\uEB43',
+        'E': '\uEB44', 'F': '\uEB45', 'G': '\uEB46', 'H': '\uEB47',
+        'I': '\uEB48', 'J': '\uEB49', 'K': '\uEB4A', 'L': '\uEB4B',
+        'M': '\uEB4C', 'N': '\uEB4D', 'O': '\uEB4E', 'P': '\uEB4F',
+        'Q': '\uEB50', 'R': '\uEB51', 'S': '\uEB52', 'T': '\uEB53',
+        'U': '\uEB54', 'V': '\uEB55', 'W': '\uEB56', 'X': '\uEB57',
+        'Y': '\uEB58', 'Z': '\uEB59',
+}
+
+def translate_to_sga(text):
+    translated_chars = [SGA_MAPPING.get(char, char) for char in text]
+    return "".join(translated_chars)
+    
+
+def get_font_path(font_filename="standard-galactic-alphabet-unpixelated.ttf"):
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.abspath(os.path.dirname(__file__))
+    return os.path.join(base_path, "fonts", font_filename)
+def generate_sga_image(sga_text, font_path, font_size=30, padding=20):
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except IOError:
+        messagebox.showerror("Font Error", f"Could not load font from: {font_path}\n"
+                                           "Please ensure 'standard-galactic-alphabet-unpixelated.ttf' is in the 'fonts' folder.")
+        return None
+    # Calculate text size using the font
+    # getbbox returns (left, top, right, bottom)
+    bbox = font.getbbox(sga_text)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    image_width = text_width + 2 * padding
+    image_height = text_height + 2 * padding
+    img = Image.new('RGB', (max(image_width, 100), max(image_height, 50)), color=(255, 255, 255))
+    d = ImageDraw.Draw(img)
+    d.text((padding, padding), sga_text, font=font, fill=(0, 0, 0)) # Black text
+    return img
 
 class CharacterGeneratorApp:
     def __init__(self, root):
@@ -1285,6 +1327,69 @@ class CharacterGeneratorApp:
         # --- Monster Generation Tab ---
         monster_frame = ttk.Frame(notebook, padding="20 20 20 20")
         notebook.add(monster_frame, text="Monsters")
+        # --- Cipher Generation Tab ---
+        cipher_frame= ttk.Frame(notebook, padding="20 20 20 20")
+        notebook.add(cipher_frame, text="Cipher")
+        
+
+
+        # --- Cipher Generation ---
+        self.sga_font_path = get_font_path("SGA1.ttf")
+
+        cipher_input_label = ttk.Label(cipher_frame, text="Enter your message (Only Lowercase):", font=("Segoe UI", 11))
+        cipher_input_label.pack(anchor=tk.W, pady=(10, 0), padx=5)
+
+        self.cipher_text_input = tk.Text(cipher_frame, height=4, width=60, wrap=tk.WORD, font=("Segoe UI", 11))
+        self.cipher_text_input.pack(pady=5, padx=5)
+
+        def process_sga_message():
+            english_message = self.cipher_text_input.get("1.0", tk.END).strip()
+            if not english_message:
+                tk.messagebox.showwarning("Input Error", "Please enter a message to translate.")
+                return
+            sga_translated_message = translate_to_sga(english_message)
+            img = generate_sga_image(sga_translated_message, self.sga_font_path)
+            if img:
+                file_path = tk.filedialog.asksaveasfilename(
+                    defaultextension=".png",
+                    filetypes=[("PNG files", "*.png"), ("All files", "*.*")],
+                    title="Save Standard Galactic Alphabet Image As"
+                )
+                if file_path:
+                    try:
+                        img.save(file_path)
+                        tk.messagebox.showinfo("Success", f"Image saved successfully to:\n{file_path}\n\nOpening image now...")
+                        os.startfile(file_path)
+                    except Exception as e:
+                        tk.messagebox.showerror("Save Error", f"Failed to save image: {e}")
+                else:
+                    tk.messagebox.showinfo("Cancelled", "Image saving cancelled.")
+
+        cipher_translate_button = ttk.Button(
+            cipher_frame,
+            text="Translate & Generate Image",
+            command=process_sga_message
+        )
+        cipher_translate_button.pack(pady=10)
+
+        items = list(SGA_MAPPING.items())
+        lines = []
+        for i in range(0, len(items), 3):
+            col1 = f"{items[i][0]}: {items[i][1]}"
+            col2 = f"{items[i+1][0]}: {items[i+1][1]}" if i+1 < len(items) else ""
+            col3 = f"{items[i+2][0]}: {items[i+2][1]}" if i+2 < len(items) else ""
+            # Adjust <20 for spacing as needed
+            line = f"{col1:<20} {col2:<20} {col3}"
+            lines.append(line)
+        three_column_text = '\n'.join(lines)
+
+        cipher_image_label = ttk.Label(
+            cipher_frame,
+            text="Generated SGA Image will appear here (after saving)...\n" + three_column_text,
+            font=("Segoe UI", 16,),
+            wraplength=400
+        )
+        cipher_image_label.pack(pady=10)
 
         # Example for greeting label:
         greeting_label = ttk.Label(
@@ -1624,6 +1729,8 @@ class CharacterGeneratorApp:
                 monster_details += f"{key}: {value}\n"
         self.monster_output.delete('1.0', tk.END)
         self.monster_output.insert(tk.END, monster_details)
+    #Cipher Generation Section
+    
 
 if __name__ == "__main__":
     root = tk.Tk()
